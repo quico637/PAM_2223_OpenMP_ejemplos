@@ -9,7 +9,7 @@ double **A;
 double **B;
 double **C;
 
-#define DEBUG
+// #define DEBUG
 #define TEST
 // #define GDB
 
@@ -32,13 +32,20 @@ void multiplicar(int m, int n, int kk)
 
 void mult_submatrix(double *a, int fa, int ca, int lda, double *b, int fb, int cb, int ldb, double *c, int fc, int cc, int ldc, int block_i, int block_j, int block_k, int block_size)
 {
-  int ii, jj, kk;
+  int i, j, k;
 
-  for (ii = block_i * block_size; ii < block_i * block_size + block_size; ii++)
+  int n = ca;
+
+  int num_blocks_rows = fa / block_size;
+  int num_blocks_cols = cb / block_size;
+  int num_blocks = ca / block_size;
+
+  for (i = block_i * block_size; i < block_i * block_size + block_size && i < num_blocks_rows; i++)
   {
-    for (jj = block_j * block_size; jj < block_j * block_size + block_size; jj++)
+    for (j = block_j * block_size; j < block_j * block_size + block_size && j < num_blocks_cols; j++)
     {
-      for (kk = block_k * block_size; kk < block_k * block_size + block_size; kk++)
+      c[i * ldc + j] = 0.0;
+      for (k = block_k * block_size; k < block_k * block_size + block_size && k < num_blocks; k++)
       {
 #ifdef GDB
         printf("row_a: %d\n", block_i * block_size);
@@ -50,7 +57,7 @@ void mult_submatrix(double *a, int fa, int ca, int lda, double *b, int fb, int c
         printf("block_j: %d\n", block_j);
         printf("-----\n\n");
 #endif
-        c[ii * ldc + jj] += a[ii * lda + kk] * b[kk * ldb + jj];
+        c[i * ldc + j] += a[i * lda + k] * b[k * ldb + j];
       }
 #ifdef GDB
       printf("\t-----\n\n");
@@ -61,6 +68,39 @@ void mult_submatrix(double *a, int fa, int ca, int lda, double *b, int fb, int c
   printf("FIN\n\n");
 #endif
 }
+
+void mult_submatrix_cua(double *a, double *b, double *c, int n, int block_i, int block_j, int block_k, int block_size, int m1, int n2, int n1)
+{
+  int ii, jj, kk;
+
+  for (ii = block_i * block_size; ii < block_i * block_size + block_size && ii < m1; ii++)
+  {
+    for (jj = block_j * block_size; jj < block_j * block_size + block_size && jj < n2; jj++)
+    {
+      for (kk = block_k * block_size; kk < block_k * block_size + block_size && kk < n1; kk++)
+      {
+#ifdef GDB
+        printf("row_a: %d\n", block_i * block_size);
+        printf("col_b: %d\n\n", block_j * block_size);
+
+        printf("col_a: %d\n", ii);
+        printf("row_b: %d\n", jj);
+        printf("block_i: %d\n", block_i);
+        printf("block_j: %d\n", block_j);
+        printf("-----\n\n");
+#endif
+        c[ii * n + jj] += a[ii * n + kk] * b[kk * n + jj];
+      }
+#ifdef GDB
+      printf("\t-----\n\n");
+#endif
+    }
+  }
+#ifdef GDB
+  printf("FIN\n\n");
+#endif
+}
+
 
 ///////////////////////////////////////////////////////////////
 
@@ -83,27 +123,86 @@ void mult_submatrix(double *a, int fa, int ca, int lda, double *b, int fb, int c
  */
 void multiply_matrix(double *a, int fa, int ca, int lda, double *b, int fb, int cb, int ldb, double *c, int fc, int cc, int ldc, int block_size)
 {
+
   int i, j, k, iam, nprocs;
   double s;
 
-  // Ver si se pueden multiplicar las matrices
   assert(ca == fb);
-  int n = ca;
 
-  int num_blocks_rows = fa / block_size;
-  int num_blocks_cols = cb / block_size;
+  int n = ca;
   int num_blocks = n / block_size;
 
-  // recorro bloques y computo bloque
-  for (i = 0; i < num_blocks_rows; i++)
-  {
-    for (j = 0; j < num_blocks_cols; j++)
-    {
-      for (k = 0; k < num_blocks; k++)
+  int m1 = fa;
+  int m2 = fb;
+  int n1 = ca;
+  int n2 = cb;
 
-        mult_submatrix(a, fa, ca, lda, b, fb, cb, ldb, c, fc, cc, ldc, i, j, k, block_size);
+  // recorro bloques y computo bloque
+  for (i = 0; i < num_blocks; i++)
+  {
+    for (j = 0; j < num_blocks; j++)
+    {
+      for (k = 0; k < num_blocks; k ++)
+
+        mult_submatrix_cua(a, b, c, n, i, j, k, block_size, m1, n2, n1);
     }
   }
+
+
+
+
+
+
+  // int i, j, k, iam, nprocs;
+  // double s;
+
+  // // Ver si se pueden multiplicar las matrices
+  // assert(ca == fb);
+  // int n = ca;
+
+  // int num_blocks_rows = fa / block_size;
+  // int num_blocks_cols = cb / block_size;
+  // int num_blocks = n / block_size;
+
+  // // recorro bloques y computo bloque
+  // for (i = 0; i < num_blocks_rows; i++)
+  // {
+  //   for (j = 0; j < num_blocks_cols; j++)
+  //   {
+  //     for (k = 0; k < num_blocks; k++)
+
+  //       mult_submatrix(a, fa, ca, lda, b, fb, cb, ldb, c, fc, cc, ldc, i, j, k, block_size);
+  //   }
+  // }
+
+
+
+
+
+
+
+  // int m1, n1, m2, n2, i, j, k, ii, jj, kk;
+  // int BLOCK_SIZE = block_size;
+  // m1 = fa;
+  // m2 = fb;
+  // n1 = ca;
+  // n2 = cb;
+
+  // for (ii = 0; ii < m1; ii += BLOCK_SIZE) {
+  //   for (jj = 0; jj < n2; jj += BLOCK_SIZE) {
+  //     for (kk = 0; kk < n1; kk += BLOCK_SIZE) {
+  //       for (i = ii; i < ii + BLOCK_SIZE && i < m1; i++) {
+  //         for (j = jj; j < jj + BLOCK_SIZE && j < n2; j++) {
+  //           c[i * ldc + j] = 0.0;
+  //           for (k = kk; k < kk + BLOCK_SIZE && k < n1; k++) {
+  //             c[i * ldc + j] += a[i * lda + k] * b[k * ldb + j];
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+
 }
 
 //////////
@@ -114,12 +213,14 @@ void initialize_global(int m, int n, int k)
   B = (double **)malloc(sizeof(double *) * k);
   C = (double **)malloc(sizeof(double *) * m);
 
-  for (int i = 0; i < n; i++)
+  for (int i = 0; i < m; i++)
   {
     A[i] = (double *)malloc(sizeof(double) * k);
-    B[i] = (double *)malloc(sizeof(double) * n);
     C[i] = (double *)malloc(sizeof(double) * n);
   }
+
+  for (int i = 0; i < k; i++)
+    B[i] = (double *)malloc(sizeof(double) * n);
 }
 
 ///////////////////////////////////////////////////////////////
@@ -174,7 +275,7 @@ void copy(double *source, double **dest, int t1, int t2)
   {
     for (int j = 0; j < t2; j++)
     {
-      dest[i][j] = source[i * t1 + j];
+      dest[i][j] = source[i * t2 + j];
     }
   }
 }
@@ -186,7 +287,7 @@ int test(double *m, double **global, int t1, int t2)
   {
     for (int j = 0; j < t2; j++)
     {
-      assert(global[i][j] == m[i * t1 + j]);
+      assert(global[i][j] == m[i * t2 + j]);
     }
   }
   printf("OK\n");
@@ -199,18 +300,16 @@ int main(int argc, char *argv[])
   double start, fin, tiempo, Mflops;
   double *a, *b, *c;
   
-  printf("sjdnsdj");
+  // if (argc < 5)
+  // {
+  //   printf("\n\n USO %s <dim_mat_m> <dim_mat_n> <dim_mat_k> <tam_blo_b>\n\n", argv[0]);
+  //   return -1;
+  // }
 
-  if (argc < 5)
-  {
-    printf("\n\n USO %s <dim_mat_m> <dim_mat_n> <dim_mat_k> <tam_blo_b>\n\n", argv[0]);
-    return -1;
-  }
-
-  m = atoi(argv[1]);
-  n = atoi(argv[2]); 
-  k = atoi(argv[3]); 
-  block_size = atoi(argv[4]);
+  // m = atoi(argv[1]);
+  // n = atoi(argv[2]); 
+  // k = atoi(argv[3]); 
+  // block_size = atoi(argv[4]);
 
   printf("sjdnsdj");
 
@@ -231,7 +330,7 @@ int main(int argc, char *argv[])
   initializealea(b, k * n);
 
   start = omp_get_wtime();
-  multiply_matrix(a, m, k, m, b, k, n, k, c, m, n, m, block_size);
+  multiply_matrix(a, m, k, k, b, k, n, n, c, m, n, n, block_size);
   fin = omp_get_wtime();
 
 #ifdef TEST
