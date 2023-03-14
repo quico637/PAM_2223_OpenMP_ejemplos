@@ -30,11 +30,9 @@ void multiplicar(int m, int n, int kk)
 
 ///////////////////////////////////////////////////////////////
 
-
 void mult_submatrix(double *a, double *b, double *c, int block_i, int block_j, int block_k, int block_size, int m1, int n2, int n1)
 {
   int i, j, k;
-
 
   for (i = block_i * block_size; i < block_i * block_size + block_size; i++)
   {
@@ -63,7 +61,6 @@ void mult_submatrix(double *a, double *b, double *c, int block_i, int block_j, i
   printf("FIN\n\n");
 #endif
 }
-
 
 ///////////////////////////////////////////////////////////////
 
@@ -96,17 +93,23 @@ void multiply_matrix(double *a, int fa, int ca, int lda, double *b, int fb, int 
   int num_blocks_cb = cb / block_size;
   int num_blocks_ca = ca / block_size;
 
-  // recorro bloques y computo bloque
-  for (i = 0; i < num_blocks_fa; i++)
+#pragma omp parallel private(iam, i, j, k)
   {
-    for (j = 0; j < num_blocks_cb; j++)
-    {
-      for (k = 0; k < num_blocks_ca; k++)
 
-        mult_submatrix(a, b, c, i, j, k, block_size, fa, cb, ca);
+#if defined(_OPENMP)
+    iam = omp_get_thread_num();
+#endif
+
+#pragma omp for
+    for (i = 0; i < num_blocks_fa; i++)
+    {
+      for (j = 0; j < num_blocks_cb; j++)
+      {
+        for (k = 0; k < num_blocks_ca; k++)
+          mult_submatrix(a, b, c, i, j, k, block_size, fa, cb, ca);
+      }
     }
   }
-
 }
 
 //////////
@@ -200,20 +203,21 @@ int test(double *m, double **global, int t1, int t2)
 ///////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
-  int m, n, k, block_size;
+  int m, n, k, block_size, threads;
   double start, fin, tiempo, Mflops;
   double *a, *b, *c;
-  
-  if (argc < 5)
+
+  if (argc < 6)
   {
-    printf("\n\n USO %s <dim_mat_m> <dim_mat_n> <dim_mat_k> <tam_blo_b>\n\n", argv[0]);
+    printf("\n\n USO %s <dim_mat_m> <dim_mat_n> <dim_mat_k> <tam_blo_b> <num_threads>\n\n", argv[0]);
     return -1;
   }
 
   m = atoi(argv[1]);
-  n = atoi(argv[2]); 
-  k = atoi(argv[3]); 
+  n = atoi(argv[2]);
+  k = atoi(argv[3]);
   block_size = atoi(argv[4]);
+  threads = atoi(argv[5]);
 
   assert(m % block_size == 0);
   assert(n % block_size == 0);
@@ -222,9 +226,11 @@ int main(int argc, char *argv[])
   a = (double *)malloc(sizeof(double) * m * k); // inicializar matriz de manera unidimensional
   b = (double *)malloc(sizeof(double) * k * n);
   c = (double *)calloc(m * n, sizeof(double));
-  
+
   initializealea(a, m * k);
   initializealea(b, k * n);
+
+  omp_set_num_threads(threads);
 
   start = omp_get_wtime();
   multiply_matrix(a, m, k, k, b, k, n, n, c, m, n, n, block_size);
@@ -260,7 +266,7 @@ int main(int argc, char *argv[])
     // printf("  threads %d, tamano %d\n    segundos: %.6lf, Mflops: %.6lf, Mflops por thread: %.6lf\n", threads, t, tiempo, Mflops, Mflops / threads);
     // printf("  Precision omp_get_wtick: numero de segundos entre sucesivos ticks de reloj usados por wtime=%lf \n", omp_get_wtick());
 #ifdef DEBUG
-  printf("m;n;k;block_size;tiempo\n");
+    printf("m;n;k;block_size;tiempo\n");
 #endif
     printf("%d;%d;%d;%d;%.2lf\n", m, n, k, block_size, tiempo);
   }

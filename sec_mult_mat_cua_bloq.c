@@ -32,13 +32,13 @@ void multiplicar(int n)
 
 void mult_submatrix(double *a, double *b, double *c, int n, int block_i, int block_j, int block_k, int block_size)
 {
-  int ii, jj, kk;
+  int i, j, k;
 
-  for (ii = block_i * block_size; ii < block_i * block_size + block_size; ii++)
+  for (i = block_i * block_size; i < block_i * block_size + block_size; i++)
   {
-    for (jj = block_j * block_size; jj < block_j * block_size + block_size; jj++)
+    for (j = block_j * block_size; j < block_j * block_size + block_size; j++)
     {
-      for (kk = block_k * block_size; kk < block_k * block_size + block_size; kk++)
+      for (k = block_k * block_size; k < block_k * block_size + block_size; k++)
       {
 #ifdef GDB
         printf("row_a: %d\n", block_i * block_size);
@@ -50,7 +50,7 @@ void mult_submatrix(double *a, double *b, double *c, int n, int block_i, int blo
         printf("block_j: %d\n", block_j);
         printf("-----\n\n");
 #endif
-        c[ii * n + jj] += a[ii * n + kk] * b[kk * n + jj];
+        c[i * n + j] += a[i * n + k] * b[k * n + j];
       }
 #ifdef GDB
       printf("\t-----\n\n");
@@ -97,7 +97,6 @@ void multiply_matrix(double *a, int fa, int ca, int lda, double *b, int fb, int 
     for (j = 0; j < num_blocks; j++)
     {
       for (k = 0; k < num_blocks; k ++)
-
         mult_submatrix(a, b, c, n, i, j, k, block_size);
     }
   }

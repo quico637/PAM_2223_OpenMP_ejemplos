@@ -11,16 +11,16 @@ double **C;
 
 // #define DEBUG
 #define TEST
-// #define GDB
+#define GDB
 
-void multiplicar(int m, int n, int kk)
+void multiplicar(int n)
 {
-  for (int i = 0; i < m; i++)
+  for (int i = 0; i < n; i++)
   {
     for (int j = 0; j < n; j++)
     {
       C[i][j] = 0.;
-      for (int k = 0; k < kk; k++)
+      for (int k = 0; k < n; k++)
       {
         C[i][j] += A[i][k] * B[k][j];
       }
@@ -30,11 +30,13 @@ void multiplicar(int m, int n, int kk)
 
 ///////////////////////////////////////////////////////////////
 
-
-void mult_submatrix(double *a, double *b, double *c, int block_i, int block_j, int block_k, int block_size, int m1, int n2, int n1)
+void mult_submatrix(double *a, double *b, double *c, int n, int block_i, int block_j, int block_k, int block_size, int iam)
 {
   int i, j, k;
 
+#ifdef GDB
+  printf("Thread ID: %d, block_i: %d, block_j: %d, block_k: %d\n--------------\n\n", iam, block_i, block_j, block_k);
+#endif
 
   for (i = block_i * block_size; i < block_i * block_size + block_size; i++)
   {
@@ -42,28 +44,11 @@ void mult_submatrix(double *a, double *b, double *c, int block_i, int block_j, i
     {
       for (k = block_k * block_size; k < block_k * block_size + block_size; k++)
       {
-#ifdef GDB
-        printf("row_a: %d\n", block_i * block_size);
-        printf("col_b: %d\n\n", block_j * block_size);
-
-        printf("col_a: %d\n", ii);
-        printf("row_b: %d\n", jj);
-        printf("block_i: %d\n", block_i);
-        printf("block_j: %d\n", block_j);
-        printf("-----\n\n");
-#endif
-        c[i * n2 + j] += a[i * n1 + k] * b[k * n2 + j];
+        c[i * n + j] += a[i * n + k] * b[k * n + j];
       }
-#ifdef GDB
-      printf("\t-----\n\n");
-#endif
     }
   }
-#ifdef GDB
-  printf("FIN\n\n");
-#endif
 }
-
 
 ///////////////////////////////////////////////////////////////
 
@@ -86,45 +71,48 @@ void mult_submatrix(double *a, double *b, double *c, int block_i, int block_j, i
  */
 void multiply_matrix(double *a, int fa, int ca, int lda, double *b, int fb, int cb, int ldb, double *c, int fc, int cc, int ldc, int block_size)
 {
-
   int i, j, k, iam, nprocs;
   double s;
 
   assert(ca == fb);
 
-  int num_blocks_fa = fa / block_size;
-  int num_blocks_cb = cb / block_size;
-  int num_blocks_ca = ca / block_size;
+  int n = ca;
+  int num_blocks = n / block_size;
 
   // recorro bloques y computo bloque
-  for (i = 0; i < num_blocks_fa; i++)
-  {
-    for (j = 0; j < num_blocks_cb; j++)
-    {
-      for (k = 0; k < num_blocks_ca; k++)
 
-        mult_submatrix(a, b, c, i, j, k, block_size, fa, cb, ca);
+#pragma omp parallel private(iam, i, j, k)
+  {
+#if defined(_OPENMP)
+    iam = omp_get_thread_num();
+#endif
+
+#pragma omp for
+    for (i = 0; i < num_blocks; i++)
+    {
+      for (j = 0; j < num_blocks; j++)
+      {
+        for (k = 0; k < num_blocks; k++)
+          mult_submatrix(a, b, c, n, i, j, k, block_size, iam);
+      }
     }
   }
-
 }
 
 //////////
 
-void initialize_global(int m, int n, int k)
+void initialize_global(int n)
 {
-  A = (double **)malloc(sizeof(double *) * m);
-  B = (double **)malloc(sizeof(double *) * k);
-  C = (double **)malloc(sizeof(double *) * m);
+  A = (double **)malloc(sizeof(double *) * n);
+  B = (double **)malloc(sizeof(double *) * n);
+  C = (double **)malloc(sizeof(double *) * n);
 
-  for (int i = 0; i < m; i++)
+  for (int i = 0; i < n; i++)
   {
-    A[i] = (double *)malloc(sizeof(double) * k);
+    A[i] = (double *)malloc(sizeof(double) * n);
+    B[i] = (double *)malloc(sizeof(double) * n);
     C[i] = (double *)malloc(sizeof(double) * n);
   }
-
-  for (int i = 0; i < k; i++)
-    B[i] = (double *)malloc(sizeof(double) * n);
 }
 
 ///////////////////////////////////////////////////////////////
@@ -144,11 +132,9 @@ void initializealea(double *m, int t)
     m[i] = (double)rand() / RAND_MAX;
 }
 ///////////////////////////////////////////////////////////////
-void escribir(double *m, int fm, int cm)
+void escribir(double *m, int fm, int cm, int ldm)
 {
-
   int i, j;
-  int ldm = fm;
   for (i = 0; i < fm; i++)
   {
     for (j = 0; j < cm; j++)
@@ -159,7 +145,7 @@ void escribir(double *m, int fm, int cm)
   printf("\n--------------\n\n");
 }
 
-void escribir_global(double **global, int fm, int cm)
+void escribir_global(double **global, int fm, int cm, int ldm)
 {
   int i, j;
   for (i = 0; i < fm; i++)
@@ -173,25 +159,25 @@ void escribir_global(double **global, int fm, int cm)
 
 ///////
 
-void copy(double *source, double **dest, int t1, int t2)
+void copy(double *source, double **dest, int n)
 {
-  for (int i = 0; i < t1; i++)
+  for (int i = 0; i < n; i++)
   {
-    for (int j = 0; j < t2; j++)
+    for (int j = 0; j < n; j++)
     {
-      dest[i][j] = source[i * t2 + j];
+      dest[i][j] = source[i * n + j];
     }
   }
 }
 
-int test(double *m, double **global, int t1, int t2)
+int test(double *m, double **global, int n)
 {
 
-  for (int i = 0; i < t1; i++)
+  for (int i = 0; i < n; i++)
   {
-    for (int j = 0; j < t2; j++)
+    for (int j = 0; j < n; j++)
     {
-      assert(global[i][j] == m[i * t2 + j]);
+      assert(global[i][j] == m[i * n + j]);
     }
   }
   printf("OK\n");
@@ -200,52 +186,51 @@ int test(double *m, double **global, int t1, int t2)
 ///////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
-  int m, n, k, block_size;
+  int t, block_size, threads;
   double start, fin, tiempo, Mflops;
   double *a, *b, *c;
-  
-  if (argc < 5)
+
+  if (argc < 4)
   {
-    printf("\n\n USO %s <dim_mat_m> <dim_mat_n> <dim_mat_k> <tam_blo_b>\n\n", argv[0]);
+    printf("\n\n USO %s <dim_mat_n> <tam_blo_b> <num_threads>\n\n", argv[0]);
     return -1;
   }
 
-  m = atoi(argv[1]);
-  n = atoi(argv[2]); 
-  k = atoi(argv[3]); 
-  block_size = atoi(argv[4]);
+  t = atoi(argv[1]); // TAM
+  block_size = atoi(argv[2]);
+  threads = atoi(argv[3]);
 
-  assert(m % block_size == 0);
-  assert(n % block_size == 0);
-  assert(k % block_size == 0);
+  assert(t % block_size == 0);
 
-  a = (double *)malloc(sizeof(double) * m * k); // inicializar matriz de manera unidimensional
-  b = (double *)malloc(sizeof(double) * k * n);
-  c = (double *)calloc(m * n, sizeof(double));
-  
-  initializealea(a, m * k);
-  initializealea(b, k * n);
+  a = (double *)malloc(sizeof(double) * t * t); // inicializar matriz de manera unidimensional
+  b = (double *)malloc(sizeof(double) * t * t);
+  c = (double *)calloc(t * t, sizeof(double));
+  initializealea(a, t * t);
+  initializealea(b, t * t);
+  // initialize_zero(c, t * t);
+
+  omp_set_num_threads(threads);
 
   start = omp_get_wtime();
-  multiply_matrix(a, m, k, k, b, k, n, n, c, m, n, n, block_size);
+  multiply_matrix(a, t, t, t, b, t, t, t, c, t, t, t, block_size);
   fin = omp_get_wtime();
 
 #ifdef TEST
   // GLOBAL
-  initialize_global(m, n, k);
-  copy(a, A, m, k);
-  copy(b, B, k, n);
+  initialize_global(t);
+  copy(a, A, t);
+  copy(b, B, t);
 
-  multiplicar(m, n, k);
+  multiplicar(t);
 
 #ifdef DEBUG
-  escribir(c, m, n);
-  escribir_global(C, m, n);
+  escribir(c, t, t, t);
+  escribir_global(C, t, t, t);
 #endif
 
-  test(a, A, m, k);
-  test(b, B, k, n);
-  test(c, C, m, n);
+  test(a, A, t);
+  test(b, B, t);
+  test(c, C, t);
 
 #endif
 
@@ -259,10 +244,7 @@ int main(int argc, char *argv[])
     // Mflops = ((2. * t * t) / tiempo) / 1000000.;
     // printf("  threads %d, tamano %d\n    segundos: %.6lf, Mflops: %.6lf, Mflops por thread: %.6lf\n", threads, t, tiempo, Mflops, Mflops / threads);
     // printf("  Precision omp_get_wtick: numero de segundos entre sucesivos ticks de reloj usados por wtime=%lf \n", omp_get_wtick());
-#ifdef DEBUG
-  printf("m;n;k;block_size;tiempo\n");
-#endif
-    printf("%d;%d;%d;%d;%.2lf\n", m, n, k, block_size, tiempo);
+    printf("%d;%d;%d;%.2lf\n", threads, t, block_size, tiempo);
   }
   free(a);
   free(b);
