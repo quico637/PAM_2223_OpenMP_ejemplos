@@ -100,7 +100,7 @@ void multiply_matrix(double *a, int fa, int ca, int lda, double *b, int fb, int 
     iam = omp_get_thread_num();
 #endif
 
-#pragma omp for
+#pragma omp for collapse(2)
     for (i = 0; i < num_blocks_fa; i++)
     {
       for (j = 0; j < num_blocks_cb; j++)
